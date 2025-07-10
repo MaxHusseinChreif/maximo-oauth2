@@ -1,0 +1,10 @@
+services:
+  app:
+    image: maxplushchreif/maximo-oauth2-app
+    container_name: maximo-oauth2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
