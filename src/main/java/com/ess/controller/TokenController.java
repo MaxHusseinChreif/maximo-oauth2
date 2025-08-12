@@ -720,6 +720,342 @@ public class TokenController {
     }
 
     /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/PERSONAPI")
+    public ResponseEntity<?> PersonApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/PERSONAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/SHIFTAPI")
+    public ResponseEntity<?> ShiftApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/SHIFTAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/LABORSHIFTAPI")
+    public ResponseEntity<?> LaborShiftApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORSHIFTAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/MODAVAILAPI")
+    public ResponseEntity<?> ModAvailApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/MODAVAILAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/QUALIFICATIONAPI")
+    public ResponseEntity<?> QualificationApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/QUALIFICATIONAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/LABORQUALAPI")
+    public ResponseEntity<?> LaborQualApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORQUALAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/LABORCERTAPI")
+    public ResponseEntity<?> LaborCertApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORCERTAPI")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.message());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
      * This is used to handle the error generated from APIs
      * @param ex
      * @return
