@@ -133,7 +133,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -181,7 +181,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -229,7 +229,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -277,7 +277,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -325,7 +325,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -373,7 +373,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -421,7 +421,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -469,7 +469,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -517,7 +517,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -565,7 +565,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -613,7 +613,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -661,7 +661,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -709,7 +709,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -757,7 +757,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -805,7 +805,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -853,7 +853,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -901,7 +901,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -949,7 +949,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -997,7 +997,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
@@ -1045,7 +1045,7 @@ public class TokenController {
             } else {
                 // Return an error message if the request failed
                 return ResponseEntity.status(response.code())
-                        .body("Error: " + response.message());
+                        .body("Error: " + response.body().string());
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
