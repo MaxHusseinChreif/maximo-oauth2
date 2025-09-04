@@ -1056,6 +1056,54 @@ public class TokenController {
     }
 
     /**
+     *
+     * @param user
+     * @return
+     */
+    @PostMapping("/ASSETP1API")
+    public ResponseEntity<?> AssetP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
+        try {
+            // Extract the token from the "Bearer <token>" format
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Jws<Claims> claims = Jwts.parser()
+                    .setSigningKey(SECRET_KEY.getBytes())
+                    .parseClaimsJws(token);
+            claims.getSignature();
+
+            // Create the request body with JSON content
+            okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                    MediaType.parse("application/json"),
+                    reqBody);
+
+            // Build the request
+            Request request = new Request.Builder()
+                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ASSETP1API")
+                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
+                    .post(body)
+                    .build();
+
+            // Execute the request
+            Response response = httpClient.newCall(request).execute();
+
+            if (response.isSuccessful()) {
+                return ResponseEntity.ok(response.body().string());
+            } else {
+                // Return an error message if the request failed
+                return ResponseEntity.status(response.code())
+                        .body("Error: " + response.body().string());
+            }
+        } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
+            // Token is invalid or expired
+            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    /**
      * This is used to handle the error generated from APIs
      * @param ex
      * @return
