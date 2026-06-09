@@ -1,5 +1,5 @@
 # ── Stage 1: build the JAR ───────────────────────────────────────────────────
-FROM maven:3.8.4-openjdk-17-slim AS build
+FROM maven:3.9.6-eclipse-temurin-21-jammy AS build
 WORKDIR /app
 
 # copy only what’s needed for dependency resolution first
@@ -11,7 +11,7 @@ COPY src ./src
 RUN mvn package
 
 # ── Stage 2: slimmer runtime ─────────────────────────────────────────────────
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 # grab the jar from the build stage
