@@ -67,6 +67,11 @@ public class TokenController {
                 .parseClaimsJws(token);
     }
 
+    private ResponseEntity<String> unauthorizedTokenResponse() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("Invalid token. You need to generate a new token.");
+    }
+
     /**
      * 
      * @param username
@@ -149,7 +154,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -190,7 +195,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -231,7 +236,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -272,7 +277,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -313,7 +318,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -354,7 +359,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -395,7 +400,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -436,7 +441,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -477,7 +482,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -518,7 +523,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -559,7 +564,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -600,7 +605,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -641,7 +646,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -682,7 +687,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -723,7 +728,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -764,7 +769,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -805,7 +810,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -847,7 +852,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -888,7 +893,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -929,7 +934,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }
@@ -970,7 +975,7 @@ public class TokenController {
             }
         } catch (SignatureException | io.jsonwebtoken.ExpiredJwtException e) {
             // Token is invalid or expired
-            return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
+            return unauthorizedTokenResponse();
         } catch (IOException e) {
             return ResponseEntity.status(500).body(e.getMessage());
         }

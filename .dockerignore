@@ -1,0 +1,8 @@
+.git
+.idea
+.settings
+target
+.classpath
+.project
+tmp-app-stdout.log
+tmp-app-stderr.log

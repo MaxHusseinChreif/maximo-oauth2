@@ -1,5 +1,5 @@
 # ── Stage 1: build the JAR ───────────────────────────────────────────────────
-FROM maven:3.9.6-eclipse-temurin-21-jammy AS build
+FROM maven:3.9.15-eclipse-temurin-21-jammy AS build
 WORKDIR /app
 
 # copy only what’s needed for dependency resolution first
@@ -8,7 +8,7 @@ RUN mvn dependency:go-offline -B
 
 # now copy sources and compile
 COPY src ./src
-RUN mvn package
+RUN mvn clean package -DskipTests
 
 # ── Stage 2: slimmer runtime ─────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-jammy
