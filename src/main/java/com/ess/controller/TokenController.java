@@ -24,22 +24,49 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.net.ssl.TrustManager;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 /**
  * 
  * @author M.Alayoubi
- * ip:8080/api/generate-token -> access token
+ *         ip:8080/api/generate-token -> access token
  * 
- */ 
+ */
 @RestController
 @RequestMapping("/api")
 public class TokenController {
 
-    private static final String SECRET_KEY = "SevEN$2025"; // Replace with a stronger key in production
+    private static final PrivateKey PRIVATE_KEY;
+    private static final PublicKey PUBLIC_KEY;
+
+    static {
+        try {
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            PRIVATE_KEY = keyPair.getPrivate();
+            PUBLIC_KEY = keyPair.getPublic();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize RSA KeyPair", e);
+        }
+    }
+
     private static final long EXPIRATION_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
     // Build the insecure OkHttp client
     private final OkHttpClient httpClient = getUnsafeOkHttpClient();
-    
+
+    private Jws<Claims> parseToken(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        return Jwts.parser()
+                .setSigningKey(PUBLIC_KEY)
+                .parseClaimsJws(token);
+    }
+
     /**
      * 
      * @param username
@@ -48,9 +75,9 @@ public class TokenController {
     @GetMapping("/generate-token")
     public Map<String, String> generateToken(String username) {
         if (!"maxinst".equalsIgnoreCase(username))
-        	throw new RuntimeException("Invalid Username " + username + ".");
-    	
-    	Map<String, Object> claims = new HashMap<>();
+            throw new RuntimeException("Invalid Username " + username + ".");
+
+        Map<String, Object> claims = new HashMap<>();
         claims.put("username", username);
 
         String token = Jwts.builder()
@@ -58,12 +85,12 @@ public class TokenController {
                 .setSubject(username)
                 .setIssuedAt(new java.util.Date())
                 .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(io.jsonwebtoken.SignatureAlgorithm.HS512, SECRET_KEY.getBytes())
+                .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, PRIVATE_KEY)
                 .compact();
 
         Map<String, String> response = new HashMap<>();
         response.put("token", token);
-        response.put("expiry", ""+EXPIRATION_TIME);
+        response.put("expiry", "" + EXPIRATION_TIME);
         return response;
     }
 
@@ -75,15 +102,7 @@ public class TokenController {
     @GetMapping("/validate-token")
     public String validateToken(@RequestHeader("Authorization") String token) {
         try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Claims claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token)
-                    .getBody();
+            Claims claims = parseToken(token).getBody();
 
             // Token is valid, return "Hello World"
             return "The Token is valid for user: " + claims.get("username");
@@ -93,38 +112,31 @@ public class TokenController {
             throw new RuntimeException("Invalid token. You need to generate a new token.");
         }
     }
-    
+
     /**
      * 
      * @param user
      * @return
-     * ip:8080/api/CBSAPI
+     *         ip:8080/api/CBSAPI
      */
     @PostMapping("/CBSAPI")
     public ResponseEntity<?> cbsApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/CBSAPI")
                     .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
                     .post(body)
                     .build();
-            
+
             // Execute the request
             Response response = httpClient.newCall(request).execute();
 
@@ -139,10 +151,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -150,22 +162,15 @@ public class TokenController {
      */
     @PostMapping("/ITEMAPI")
     public ResponseEntity<?> itemApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ITEMAPI")
@@ -187,8 +192,8 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
 
     /**
@@ -198,22 +203,15 @@ public class TokenController {
      */
     @PostMapping("/MATUSETRANSAPI")
     public ResponseEntity<?> MatusetransApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/MATUSETRANSAPI")
@@ -235,10 +233,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -246,22 +244,15 @@ public class TokenController {
      */
     @PostMapping("/ASSETAPI")
     public ResponseEntity<?> AssetApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ASSETAPI")
@@ -283,10 +274,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -294,22 +285,15 @@ public class TokenController {
      */
     @PostMapping("/INVENTORYAPI")
     public ResponseEntity<?> InventoryApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVENTORYAPI")
@@ -331,10 +315,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -342,22 +326,15 @@ public class TokenController {
      */
     @PostMapping("/POAPI")
     public ResponseEntity<?> PoApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/POAPI")
@@ -379,10 +356,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -390,22 +367,15 @@ public class TokenController {
      */
     @PostMapping("/SERVITEMAPI")
     public ResponseEntity<?> ServItemApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/SERVITEMAPI")
@@ -427,10 +397,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -438,22 +408,15 @@ public class TokenController {
      */
     @PostMapping("/VENDORAPI")
     public ResponseEntity<?> VendorApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/VENDORAPI")
@@ -475,10 +438,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -486,22 +449,15 @@ public class TokenController {
      */
     @PostMapping("/VENDORP1API")
     public ResponseEntity<?> VendorP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/VENDORP1API")
@@ -523,10 +479,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -534,22 +490,15 @@ public class TokenController {
      */
     @PostMapping("/ITEMSERVP1API")
     public ResponseEntity<?> ItemServP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ITEMSERVP1API")
@@ -571,10 +520,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -582,22 +531,15 @@ public class TokenController {
      */
     @PostMapping("/INVENTORYP1API")
     public ResponseEntity<?> InventoryP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVENTORYP1API")
@@ -619,10 +561,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -630,22 +572,15 @@ public class TokenController {
      */
     @PostMapping("/INVUSEP1API")
     public ResponseEntity<?> InvUseP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVUSEP1API")
@@ -667,10 +602,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -678,22 +613,15 @@ public class TokenController {
      */
     @PostMapping("/POP1API")
     public ResponseEntity<?> PoP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/POP1API")
@@ -715,10 +643,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -726,22 +654,15 @@ public class TokenController {
      */
     @PostMapping("/PERSONAPI")
     public ResponseEntity<?> PersonApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/PERSONAPI")
@@ -763,10 +684,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -774,22 +695,15 @@ public class TokenController {
      */
     @PostMapping("/SHIFTAPI")
     public ResponseEntity<?> ShiftApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/SHIFTAPI")
@@ -811,10 +725,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -822,22 +736,15 @@ public class TokenController {
      */
     @PostMapping("/LABORSHIFTAPI")
     public ResponseEntity<?> LaborShiftApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORSHIFTAPI")
@@ -859,10 +766,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -870,22 +777,15 @@ public class TokenController {
      */
     @PostMapping("/MODAVAILAPI")
     public ResponseEntity<?> ModAvailApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/MODAVAILAPI")
@@ -907,33 +807,27 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
      * @return
      */
     @PostMapping("/QUALIFICATIONAPI")
-    public ResponseEntity<?> QualificationApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+    public ResponseEntity<?> QualificationApi(@RequestHeader("Authorization") String token,
+            @RequestBody String reqBody) {
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/QUALIFICATIONAPI")
@@ -955,10 +849,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -966,22 +860,15 @@ public class TokenController {
      */
     @PostMapping("/LABORQUALAPI")
     public ResponseEntity<?> LaborQualApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORQUALAPI")
@@ -1003,10 +890,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -1014,22 +901,15 @@ public class TokenController {
      */
     @PostMapping("/LABORCERTAPI")
     public ResponseEntity<?> LaborCertApi(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORCERTAPI")
@@ -1051,10 +931,10 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * 
      * @param user
@@ -1062,22 +942,15 @@ public class TokenController {
      */
     @PostMapping("/ASSETP1API")
     public ResponseEntity<?> AssetP1Api(@RequestHeader("Authorization") String token, @RequestBody String reqBody) {
-    	try {
-            // Extract the token from the "Bearer <token>" format
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Jws<Claims> claims = Jwts.parser()
-                    .setSigningKey(SECRET_KEY.getBytes())
-                    .parseClaimsJws(token);
+        try {
+            Jws<Claims> claims = parseToken(token);
             claims.getSignature();
 
             // Create the request body with JSON content
             okhttp3.RequestBody body = okhttp3.RequestBody.create(
                     MediaType.parse("application/json"),
                     reqBody);
-            
+
             // Build the request
             Request request = new Request.Builder()
                     .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ASSETP1API")
@@ -1099,12 +972,13 @@ public class TokenController {
             // Token is invalid or expired
             return ResponseEntity.status(201).body("Invalid token. You need to generate a new token.");
         } catch (IOException e) {
-			return ResponseEntity.status(500).body(e.getMessage());
-		}
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
     }
-    
+
     /**
      * This is used to handle the error generated from APIs
+     * 
      * @param ex
      * @return
      */
@@ -1115,25 +989,58 @@ public class TokenController {
         errorResponse.put("error", ex.getMessage());
         return new ResponseEntity<>(errorResponse, HttpStatus.EXPECTATION_FAILED);
     }
-    
- // Bypass SSL certificate validation
+
+    // Bypass SSL certificate validation and enforce TLS 1.2+
     private OkHttpClient getUnsafeOkHttpClient() {
         try {
-            final TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {}
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {}
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[]{}; }
-                }
+            final TrustManager[] trustAllCerts = new TrustManager[] {
+                    new javax.net.ssl.X509ExtendedTrustManager() {
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType)
+                                throws CertificateException {
+                        }
+
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType)
+                                throws CertificateException {
+                        }
+
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new java.security.cert.X509Certificate[] {};
+                        }
+
+                        @Override
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType, java.net.Socket socket)
+                                throws CertificateException {
+                        }
+
+                        @Override
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType, java.net.Socket socket)
+                                throws CertificateException {
+                        }
+
+                        @Override
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType, javax.net.ssl.SSLEngine engine)
+                                                throws CertificateException {
+                        }
+
+                        @Override
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType, javax.net.ssl.SSLEngine engine)
+                                                throws CertificateException {
+                        }
+                    }
             };
 
-            final SSLContext sslContext = SSLContext.getInstance("SSL");
+            final SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
             final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
 
+            ConnectionSpec spec = new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+                    .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
+                    .build();
+
             return new OkHttpClient.Builder()
-                    .sslSocketFactory(sslSocketFactory, (X509TrustManager)trustAllCerts[0])
+                    .sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
                     .hostnameVerifier((hostname, session) -> true)
+                    .connectionSpecs(java.util.Collections.singletonList(spec))
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .build();
