@@ -1,5 +1,5 @@
 # ── Stage 1: build the JAR ───────────────────────────────────────────────────
-FROM maven:3.9.15-eclipse-temurin-21-jammy AS build
+FROM docker.io/library/maven:3.9.15-eclipse-temurin-21-noble AS build
 WORKDIR /app
 
 # copy only what’s needed for dependency resolution first
@@ -11,7 +11,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # ── Stage 2: slimmer runtime ─────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-jammy
+FROM docker.io/library/eclipse-temurin:21-jre-noble
 WORKDIR /app
 
 # grab the jar from the build stage
