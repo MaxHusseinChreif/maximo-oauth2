@@ -15,3 +15,5 @@ target/
 src/main/resources/application-local.properties
 src/main/resources/application-*.properties
 !src/main/resources/application.properties
+.env
+secrets/

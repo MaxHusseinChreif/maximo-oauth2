@@ -1,12 +1,11 @@
 package com.ess.controller;
 
+import com.ess.security.JwtKeyProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureException;
 import okhttp3.*;
-import javax.net.ssl.*;
-import java.security.cert.CertificateException;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -25,12 +24,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.net.ssl.TrustManager;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-
 /**
  * 
  * @author M.Alayoubi
@@ -41,37 +34,34 @@ import java.security.PublicKey;
 @RequestMapping("/api")
 public class TokenController {
 
-    @Value("${app.oauth.client-id:maximo-client}")
-    private String configuredClientId;
-
-    @Value("${app.oauth.client-secret:CHANGE_ME_STRONG_SECRET}")
-    private String configuredClientSecret;
-
-    private static final PrivateKey PRIVATE_KEY;
-    private static final PublicKey PUBLIC_KEY;
-
-    static {
-        try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-            PRIVATE_KEY = keyPair.getPrivate();
-            PUBLIC_KEY = keyPair.getPublic();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize RSA KeyPair", e);
-        }
-    }
+    private final String configuredClientId;
+    private final String configuredClientSecret;
+    private final String maximoApiKey;
+    private final HttpUrl maximoScriptBaseUrl;
+    private final JwtKeyProvider jwtKeyProvider;
 
     private static final long EXPIRATION_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
-    // Build the insecure OkHttp client
-    private final OkHttpClient httpClient = getUnsafeOkHttpClient();
+    private final OkHttpClient httpClient = createHttpClient();
+
+    public TokenController(
+            @Value("${app.oauth.client-id}") String configuredClientId,
+            @Value("${app.oauth.client-secret}") String configuredClientSecret,
+            @Value("${app.maximo.script-base-url}") String maximoScriptBaseUrl,
+            @Value("${app.maximo.api-key}") String maximoApiKey,
+            JwtKeyProvider jwtKeyProvider) {
+        this.configuredClientId = requireConfiguration("OAUTH_CLIENT_ID", configuredClientId);
+        this.configuredClientSecret = requireConfiguration("OAUTH_CLIENT_SECRET", configuredClientSecret);
+        this.maximoApiKey = requireConfiguration("MAXIMO_API_KEY", maximoApiKey);
+        this.maximoScriptBaseUrl = parseMaximoScriptBaseUrl(maximoScriptBaseUrl);
+        this.jwtKeyProvider = jwtKeyProvider;
+    }
 
     private Jws<Claims> parseToken(String token) {
         if (token.startsWith("Bearer ")) {
             token = token.substring(7);
         }
         return Jwts.parser()
-                .setSigningKey(PUBLIC_KEY)
+                .setSigningKey(jwtKeyProvider.publicKey())
                 .parseClaimsJws(token);
     }
 
@@ -79,34 +69,6 @@ public class TokenController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body("Invalid token. You need to generate a new token.");
     }
-
-    // OLD INSECURE USERNAME-ONLY ENDPOINT (COMMENTED OUT FOR SECURITY)
-    // /**
-    //  * 
-    //  * @param username
-    //  * @return
-    //  */
-    // @GetMapping("/generate-token")
-    // public Map<String, String> generateToken(String username) {
-    //     if (!"maxinst".equalsIgnoreCase(username))
-    //         throw new RuntimeException("Invalid Username " + username + ".");
-    // 
-    //     Map<String, Object> claims = new HashMap<>();
-    //     claims.put("username", username);
-    // 
-    //     String token = Jwts.builder()
-    //             .setClaims(claims)
-    //             .setSubject(username)
-    //             .setIssuedAt(new java.util.Date())
-    //             .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
-    //             .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, PRIVATE_KEY)
-    //             .compact();
-    // 
-    //     Map<String, String> response = new HashMap<>();
-    //     response.put("token", token);
-    //     response.put("expiry", "" + EXPIRATION_TIME);
-    //     return response;
-    // }
 
     /**
      * OAuth2 Client Credentials Token Endpoint
@@ -155,7 +117,7 @@ public class TokenController {
                 .setSubject(clientId)
                 .setIssuedAt(new java.util.Date())
                 .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, PRIVATE_KEY)
+                .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, jwtKeyProvider.privateKey())
                 .compact();
 
         Map<String, Object> response = new HashMap<>();
@@ -204,11 +166,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/CBSAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("CBSAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -245,11 +203,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ITEMAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("ITEMAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -286,11 +240,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/MATUSETRANSAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("MATUSETRANSAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -327,11 +277,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ASSETAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("ASSETAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -368,11 +314,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVENTORYAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("INVENTORYAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -409,11 +351,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/POAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("POAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -450,11 +388,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/SERVITEMAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("SERVITEMAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -491,11 +425,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/VENDORAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("VENDORAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -532,11 +462,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/VENDORP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("VENDORP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -573,11 +499,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ITEMSERVP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("ITEMSERVP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -614,11 +536,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVENTORYP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("INVENTORYP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -655,11 +573,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/INVUSEP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("INVUSEP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -696,11 +610,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/POP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("POP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -737,11 +647,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/PERSONAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("PERSONAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -778,11 +684,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/SHIFTAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("SHIFTAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -819,11 +721,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORSHIFTAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("LABORSHIFTAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -860,11 +758,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/MODAVAILAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("MODAVAILAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -902,11 +796,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/QUALIFICATIONAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("QUALIFICATIONAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -943,11 +833,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORQUALAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("LABORQUALAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -984,11 +870,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/LABORCERTAPI")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("LABORCERTAPI", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -1025,11 +907,7 @@ public class TokenController {
                     reqBody);
 
             // Build the request
-            Request request = new Request.Builder()
-                    .url("https://maxdev.manage.maxdev.apps.me-qhscactm.dev.openshift.sevenit.cloud/maximo/api/script/ASSETP1API")
-                    .addHeader("apikey", "themlgciqgkh4p5tlk7dat2shbacc11eop7kft6a")
-                    .post(body)
-                    .build();
+            Request request = createMaximoRequest("ASSETP1API", body);
 
             // Execute the request
             Response response = httpClient.newCall(request).execute();
@@ -1063,62 +941,54 @@ public class TokenController {
         return new ResponseEntity<>(errorResponse, HttpStatus.EXPECTATION_FAILED);
     }
 
-    // Bypass SSL certificate validation and enforce TLS 1.2+
-    private OkHttpClient getUnsafeOkHttpClient() {
-        try {
-            final TrustManager[] trustAllCerts = new TrustManager[] {
-                    new javax.net.ssl.X509ExtendedTrustManager() {
-                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType)
-                                throws CertificateException {
-                        }
-
-                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType)
-                                throws CertificateException {
-                        }
-
-                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                            return new java.security.cert.X509Certificate[] {};
-                        }
-
-                        @Override
-                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType, java.net.Socket socket)
-                                throws CertificateException {
-                        }
-
-                        @Override
-                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType, java.net.Socket socket)
-                                throws CertificateException {
-                        }
-
-                        @Override
-                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType, javax.net.ssl.SSLEngine engine)
-                                                throws CertificateException {
-                        }
-
-                        @Override
-                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType, javax.net.ssl.SSLEngine engine)
-                                                throws CertificateException {
-                        }
-                    }
-            };
-
-            final SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-
-            ConnectionSpec spec = new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
-                    .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
-                    .build();
-
-            return new OkHttpClient.Builder()
-                    .sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
-                    .hostnameVerifier((hostname, session) -> true)
-                    .connectionSpecs(java.util.Collections.singletonList(spec))
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    private Request createMaximoRequest(String scriptName, okhttp3.RequestBody body) {
+        HttpUrl scriptUrl = maximoScriptBaseUrl.resolve(scriptName);
+        if (scriptUrl == null) {
+            throw new IllegalArgumentException("Invalid Maximo script name");
         }
+
+        return new Request.Builder()
+                .url(scriptUrl)
+                .addHeader("apikey", maximoApiKey)
+                .post(body)
+                .build();
+    }
+
+    private static HttpUrl parseMaximoScriptBaseUrl(String configuredUrl) {
+        String baseUrl = requireConfiguration("MAXIMO_SCRIPT_BASE_URL", configuredUrl);
+        if (!baseUrl.endsWith("/")) {
+            baseUrl += "/";
+        }
+
+        HttpUrl parsedUrl;
+        try {
+            parsedUrl = HttpUrl.get(baseUrl);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("MAXIMO_SCRIPT_BASE_URL must be a valid URL", exception);
+        }
+
+        if (!"https".equalsIgnoreCase(parsedUrl.scheme())) {
+            throw new IllegalStateException("MAXIMO_SCRIPT_BASE_URL must use HTTPS");
+        }
+        return parsedUrl;
+    }
+
+    private static String requireConfiguration(String variableName, String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(variableName + " must be configured");
+        }
+        return value;
+    }
+
+    private static OkHttpClient createHttpClient() {
+        ConnectionSpec tlsSpec = new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+                .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
+                .build();
+
+        return new OkHttpClient.Builder()
+                .connectionSpecs(java.util.Collections.singletonList(tlsSpec))
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .build();
     }
 }
