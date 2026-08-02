@@ -9,6 +9,7 @@ import javax.net.ssl.*;
 import java.security.cert.CertificateException;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
@@ -32,12 +34,18 @@ import java.security.PublicKey;
 /**
  * 
  * @author M.Alayoubi
- *         ip:8080/api/generate-token -> access token
+ *         ip:8080/api/token -> access token (OAuth2 Client Credentials)
  * 
  */
 @RestController
 @RequestMapping("/api")
 public class TokenController {
+
+    @Value("${app.oauth.client-id:maximo-client}")
+    private String configuredClientId;
+
+    @Value("${app.oauth.client-secret:CHANGE_ME_STRONG_SECRET}")
+    private String configuredClientSecret;
 
     private static final PrivateKey PRIVATE_KEY;
     private static final PublicKey PUBLIC_KEY;
@@ -72,31 +80,91 @@ public class TokenController {
                 .body("Invalid token. You need to generate a new token.");
     }
 
+    // OLD INSECURE USERNAME-ONLY ENDPOINT (COMMENTED OUT FOR SECURITY)
+    // /**
+    //  * 
+    //  * @param username
+    //  * @return
+    //  */
+    // @GetMapping("/generate-token")
+    // public Map<String, String> generateToken(String username) {
+    //     if (!"maxinst".equalsIgnoreCase(username))
+    //         throw new RuntimeException("Invalid Username " + username + ".");
+    // 
+    //     Map<String, Object> claims = new HashMap<>();
+    //     claims.put("username", username);
+    // 
+    //     String token = Jwts.builder()
+    //             .setClaims(claims)
+    //             .setSubject(username)
+    //             .setIssuedAt(new java.util.Date())
+    //             .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
+    //             .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, PRIVATE_KEY)
+    //             .compact();
+    // 
+    //     Map<String, String> response = new HashMap<>();
+    //     response.put("token", token);
+    //     response.put("expiry", "" + EXPIRATION_TIME);
+    //     return response;
+    // }
+
     /**
-     * 
-     * @param username
-     * @return
+     * OAuth2 Client Credentials Token Endpoint
+     * Accepts client_id & client_secret via form parameters, query params, or JSON body.
      */
-    @GetMapping("/generate-token")
-    public Map<String, String> generateToken(String username) {
-        if (!"maxinst".equalsIgnoreCase(username))
-            throw new RuntimeException("Invalid Username " + username + ".");
+    @PostMapping(value = "/token", consumes = org.springframework.http.MediaType.ALL_VALUE)
+    public ResponseEntity<?> token(
+            @RequestParam Map<String, String> allParams,
+            @RequestBody(required = false) String rawBody) {
+
+        String clientId = allParams.get("client_id");
+        String clientSecret = allParams.get("client_secret");
+
+        if ((clientId == null || clientSecret == null) && rawBody != null && !rawBody.trim().isEmpty()) {
+            try {
+                com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(rawBody).getAsJsonObject();
+                if (clientId == null && json.has("client_id")) {
+                    clientId = json.get("client_id").getAsString();
+                }
+                if (clientSecret == null && json.has("client_secret")) {
+                    clientSecret = json.get("client_secret").getAsString();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (clientId == null || clientSecret == null) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "invalid_request");
+            err.put("error_description", "client_id and client_secret are required.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err);
+        }
+
+        if (!configuredClientId.equals(clientId) || !configuredClientSecret.equals(clientSecret)) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "invalid_client");
+            err.put("error_description", "Invalid client_id or client_secret.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err);
+        }
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("username", username);
+        claims.put("username", clientId);
 
         String token = Jwts.builder()
                 .setClaims(claims)
-                .setSubject(username)
+                .setSubject(clientId)
                 .setIssuedAt(new java.util.Date())
                 .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, PRIVATE_KEY)
                 .compact();
 
-        Map<String, String> response = new HashMap<>();
-        response.put("token", token);
+        Map<String, Object> response = new HashMap<>();
+        // response.put("access_token", token);
+        response.put("token_type", "Bearer");
+        response.put("expires_in", EXPIRATION_TIME / 1000);
+        response.put("token", token); // Backward compatibility key
         response.put("expiry", "" + EXPIRATION_TIME);
-        return response;
+        return ResponseEntity.ok(response);
     }
 
     /**
