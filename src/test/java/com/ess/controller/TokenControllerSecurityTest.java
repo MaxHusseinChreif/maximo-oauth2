@@ -1,6 +1,7 @@
 package com.ess.controller;
 
 import com.ess.security.JwtKeyProvider;
+import com.ess.security.JwtTokenService;
 import com.ess.support.JwtKeyTestFactory;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -13,11 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 
 import java.io.IOException;
 import java.security.KeyPair;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class TokenControllerSecurityTest {
 
@@ -40,17 +43,17 @@ class TokenControllerSecurityTest {
         TokenController issuer = controller(JwtKeyTestFactory.create(sharedKeyPair));
         TokenController validator = controller(JwtKeyTestFactory.create(sharedKeyPair));
 
-        Map<String, String> credentials = new HashMap<>();
-        credentials.put("client_id", CLIENT_ID);
-        credentials.put("client_secret", CLIENT_SECRET);
-
-        ResponseEntity<?> response = issuer.token(credentials, null);
+        ResponseEntity<?> response = issuer.tokenJson(new TokenController.TokenRequest(CLIENT_ID, CLIENT_SECRET));
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
 
         @SuppressWarnings("unchecked")
-        String token = (String) ((Map<String, Object>) response.getBody()).get("token");
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        String token = (String) body.get("token");
         assertNotNull(token);
+        assertEquals(token, body.get("access_token"));
+        assertEquals("no-store", response.getHeaders().getCacheControl());
+        assertEquals("no-cache", response.getHeaders().getFirst(HttpHeaders.PRAGMA));
         assertEquals("The Token is valid for user: " + CLIENT_ID,
                 validator.validateToken("Bearer " + token));
     }
@@ -58,16 +61,18 @@ class TokenControllerSecurityTest {
     @Test
     void rejectsMissingRequiredRuntimeConfiguration() throws Exception {
         JwtKeyProvider keys = JwtKeyTestFactory.create();
+        JwtTokenService tokens = tokenService(keys);
 
         assertThrows(IllegalStateException.class,
-                () -> new TokenController(CLIENT_ID, "", MAXIMO_BASE_URL, "api-key", keys));
+                () -> new TokenController(CLIENT_ID, "", MAXIMO_BASE_URL, "api-key", tokens));
         assertThrows(IllegalStateException.class,
-                () -> new TokenController(CLIENT_ID, CLIENT_SECRET, MAXIMO_BASE_URL, "", keys));
+                () -> new TokenController(CLIENT_ID, CLIENT_SECRET, MAXIMO_BASE_URL, "", tokens));
     }
 
     @Test
     void rejectsNonHttpsMaximoBaseUrl() throws Exception {
         JwtKeyProvider keys = JwtKeyTestFactory.create();
+        JwtTokenService tokens = tokenService(keys);
 
         assertThrows(IllegalStateException.class,
                 () -> new TokenController(
@@ -75,7 +80,7 @@ class TokenControllerSecurityTest {
                         CLIENT_SECRET,
                         "http://maximo.example.com/maximo/api/script",
                         "api-key",
-                        keys));
+                        tokens));
     }
 
     @Test
@@ -141,11 +146,8 @@ class TokenControllerSecurityTest {
         String rejectedClientId = "sensitive-client-id";
         String rejectedClientSecret = "sensitive-client-secret";
         TokenController controller = controller(JwtKeyTestFactory.create());
-        Map<String, String> credentials = new HashMap<>();
-        credentials.put("client_id", rejectedClientId);
-        credentials.put("client_secret", rejectedClientSecret);
-
-        ResponseEntity<?> response = controller.token(credentials, null);
+        ResponseEntity<?> response = controller.tokenJson(
+                new TokenController.TokenRequest(rejectedClientId, rejectedClientSecret));
 
         assertEquals(401, response.getStatusCode().value());
         assertTrue(output.getAll().contains("event=oauth_token outcome=denied reason=invalid_credentials"));
@@ -153,8 +155,36 @@ class TokenControllerSecurityTest {
         assertFalse(output.getAll().contains(rejectedClientSecret));
     }
 
+    @Test
+    void doesNotAcceptCredentialsFromQueryString() throws Exception {
+        TokenController controller = controller(JwtKeyTestFactory.create());
+
+        org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(controller)
+                .build()
+                .perform(post("/api/token")
+                        .queryParam("client_id", CLIENT_ID)
+                        .queryParam("client_secret", CLIENT_SECRET)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED)
+                        .content(""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsSanitizedBadRequestForMalformedJsonCredentials() throws Exception {
+        TokenController controller = controller(JwtKeyTestFactory.create());
+
+        org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(controller)
+                .build()
+                .perform(post("/api/token")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest());
+    }
+
     private static TokenController controller(JwtKeyProvider keys) {
-        return new TokenController(CLIENT_ID, CLIENT_SECRET, MAXIMO_BASE_URL, "api-key", keys);
+        return new TokenController(CLIENT_ID, CLIENT_SECRET, MAXIMO_BASE_URL, "api-key", tokenService(keys));
     }
 
     private static TokenController controller(
@@ -162,21 +192,27 @@ class TokenControllerSecurityTest {
             OkHttpClient httpClient) {
         HttpUrl maximoBaseUrl = HttpUrl.parse(MAXIMO_BASE_URL + "/");
         assertNotNull(maximoBaseUrl);
-        return new TokenController(CLIENT_ID, CLIENT_SECRET, maximoBaseUrl, "api-key", keys, httpClient);
+        return new TokenController(
+                CLIENT_ID,
+                CLIENT_SECRET,
+                maximoBaseUrl,
+                "api-key",
+                tokenService(keys),
+                httpClient);
     }
 
     private static String issueToken(TokenController controller) {
-        Map<String, String> credentials = new HashMap<>();
-        credentials.put("client_id", CLIENT_ID);
-        credentials.put("client_secret", CLIENT_SECRET);
-
-        ResponseEntity<?> response = controller.token(credentials, null);
+        ResponseEntity<?> response = controller.tokenJson(new TokenController.TokenRequest(CLIENT_ID, CLIENT_SECRET));
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody() instanceof Map);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         return "Bearer " + body.get("token");
+    }
+
+    private static JwtTokenService tokenService(JwtKeyProvider keys) {
+        return new JwtTokenService(keys, "maximo-oauth2", "maximo-api", "test-key", 1800);
     }
 
     private static Response successfulResponse(Request request, String body) {

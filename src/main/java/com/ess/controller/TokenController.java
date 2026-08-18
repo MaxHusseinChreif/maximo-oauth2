@@ -1,13 +1,10 @@
 package com.ess.controller;
 
-import com.ess.security.JwtKeyProvider;
+import com.ess.security.JwtTokenService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.Jwts;
 import okhttp3.ConnectionSpec;
 import okhttp3.HttpUrl;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -17,18 +14,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,14 +47,13 @@ import java.util.concurrent.TimeUnit;
 public class TokenController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TokenController.class);
-    private static final long EXPIRATION_TIME = 30 * 60 * 1000;
-    private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json");
+    private static final okhttp3.MediaType JSON_MEDIA_TYPE = okhttp3.MediaType.parse("application/json");
 
     private final String configuredClientId;
     private final String configuredClientSecret;
     private final String maximoApiKey;
     private final HttpUrl maximoScriptBaseUrl;
-    private final JwtKeyProvider jwtKeyProvider;
+    private final JwtTokenService jwtTokenService;
     private final OkHttpClient httpClient;
 
     @Autowired
@@ -60,13 +62,13 @@ public class TokenController {
             @Value("${app.oauth.client-secret}") String configuredClientSecret,
             @Value("${app.maximo.script-base-url}") String maximoScriptBaseUrl,
             @Value("${app.maximo.api-key}") String maximoApiKey,
-            JwtKeyProvider jwtKeyProvider) {
+            JwtTokenService jwtTokenService) {
         this(
                 configuredClientId,
                 configuredClientSecret,
                 parseMaximoScriptBaseUrl(maximoScriptBaseUrl),
                 maximoApiKey,
-                jwtKeyProvider,
+                jwtTokenService,
                 createHttpClient());
     }
 
@@ -75,48 +77,41 @@ public class TokenController {
             String configuredClientSecret,
             HttpUrl maximoScriptBaseUrl,
             String maximoApiKey,
-            JwtKeyProvider jwtKeyProvider,
+            JwtTokenService jwtTokenService,
             OkHttpClient httpClient) {
         this.configuredClientId = requireConfiguration("OAUTH_CLIENT_ID", configuredClientId);
         this.configuredClientSecret = requireConfiguration("OAUTH_CLIENT_SECRET", configuredClientSecret);
         this.maximoApiKey = requireConfiguration("MAXIMO_API_KEY", maximoApiKey);
         this.maximoScriptBaseUrl = Objects.requireNonNull(maximoScriptBaseUrl, "maximoScriptBaseUrl");
-        this.jwtKeyProvider = Objects.requireNonNull(jwtKeyProvider, "jwtKeyProvider");
+        this.jwtTokenService = Objects.requireNonNull(jwtTokenService, "jwtTokenService");
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
     }
 
-    /**
-     * OAuth2 client-credentials endpoint. Credentials may be supplied as form,
-     * query, or JSON parameters for backward compatibility.
-     */
-    @PostMapping(value = "/token", consumes = org.springframework.http.MediaType.ALL_VALUE)
-    public ResponseEntity<?> token(
-            @RequestParam Map<String, String> allParams,
-            @RequestBody(required = false) String rawBody) {
-        String clientId = allParams.get("client_id");
-        String clientSecret = allParams.get("client_secret");
-
-        if ((clientId == null || clientSecret == null) && rawBody != null && !rawBody.isBlank()) {
-            try {
-                com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(rawBody).getAsJsonObject();
-                if (clientId == null && json.has("client_id")) {
-                    clientId = json.get("client_id").getAsString();
-                }
-                if (clientSecret == null && json.has("client_secret")) {
-                    clientSecret = json.get("client_secret").getAsString();
-                }
-            } catch (RuntimeException ignored) {
-                // The response below deliberately does not expose JSON parsing details.
-            }
+    @PostMapping(value = "/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> tokenForm(@RequestBody(required = false) MultiValueMap<String, String> form) {
+        if (form == null) {
+            return issueToken(null, null);
         }
+        return issueToken(form.getFirst("client_id"), form.getFirst("client_secret"));
+    }
 
-        if (clientId == null || clientSecret == null) {
+    @PostMapping(value = "/token", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> tokenJson(@RequestBody TokenRequest request) {
+        if (request == null) {
+            return issueToken(null, null);
+        }
+        return issueToken(request.clientId(), request.clientSecret());
+    }
+
+    private ResponseEntity<?> issueToken(String clientId, String clientSecret) {
+
+        if (clientId == null || clientId.isBlank() || clientSecret == null || clientSecret.isBlank()) {
             LOGGER.warn("event=oauth_token outcome=denied reason=missing_credentials");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            return ResponseEntity.badRequest()
                     .body(errorResponse("invalid_request", "client_id and client_secret are required."));
         }
 
-        if (!configuredClientId.equals(clientId) || !configuredClientSecret.equals(clientSecret)) {
+        if (!configuredClientId.equals(clientId) || !constantTimeEquals(configuredClientSecret, clientSecret)) {
             LOGGER.warn("event=oauth_token outcome=denied reason=invalid_credentials");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(errorResponse("invalid_client", "Invalid client_id or client_secret."));
@@ -125,28 +120,26 @@ public class TokenController {
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", clientId);
 
-        String token = Jwts.builder()
-                .setClaims(claims)
-                .setSubject(clientId)
-                .setIssuedAt(new java.util.Date())
-                .setExpiration(new java.util.Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(io.jsonwebtoken.SignatureAlgorithm.RS256, jwtKeyProvider.privateKey())
-                .compact();
+        String token = jwtTokenService.issueToken(clientId, claims);
 
         LOGGER.info("event=oauth_token outcome=success");
 
         Map<String, Object> response = new HashMap<>();
         response.put("token_type", "Bearer");
-        response.put("expires_in", EXPIRATION_TIME / 1000);
+        response.put("expires_in", jwtTokenService.expirationSeconds());
+        response.put("access_token", token);
         response.put("token", token);
-        response.put("expiry", Long.toString(EXPIRATION_TIME));
-        return ResponseEntity.ok(response);
+        response.put("expiry", Long.toString(jwtTokenService.expirationSeconds() * 1000));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .body(response);
     }
 
     @GetMapping("/validate-token")
     public String validateToken(@RequestHeader("Authorization") String token) {
         try {
-            Claims claims = parseToken(token).getBody();
+            Claims claims = jwtTokenService.parseAuthorizationHeader(token).getBody();
             LOGGER.info("event=token_validation outcome=success");
             return "The Token is valid for user: " + claims.get("username");
         } catch (JwtException | IllegalArgumentException exception) {
@@ -157,7 +150,7 @@ public class TokenController {
 
     private ResponseEntity<?> forwardToMaximo(String scriptName, String token, String reqBody) {
         try {
-            parseToken(token);
+            jwtTokenService.parseAuthorizationHeader(token);
         } catch (JwtException | IllegalArgumentException exception) {
             LOGGER.warn("event=maximo_proxy script={} outcome=denied reason=invalid_token", scriptName);
             return unauthorizedTokenResponse();
@@ -298,6 +291,13 @@ public class TokenController {
         return unauthorizedTokenResponse();
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> handleUnreadableRequestBody() {
+        LOGGER.warn("event=request_processing outcome=denied reason=malformed_body");
+        return ResponseEntity.badRequest()
+                .body(errorResponse("invalid_request", "The request body is malformed."));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleUnexpectedRuntimeException(RuntimeException exception) {
         LOGGER.error(
@@ -305,21 +305,6 @@ public class TokenController {
                 exception.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorResponse("request_failed", "The request could not be processed."));
-    }
-
-    private Jws<Claims> parseToken(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Bearer token is required");
-        }
-
-        String compactToken = authorizationHeader.substring(7).trim();
-        if (compactToken.isEmpty()) {
-            throw new IllegalArgumentException("Bearer token is required");
-        }
-
-        return Jwts.parser()
-                .setSigningKey(jwtKeyProvider.publicKey())
-                .parseClaimsJws(compactToken);
     }
 
     private ResponseEntity<String> unauthorizedTokenResponse() {
@@ -367,6 +352,12 @@ public class TokenController {
         return value;
     }
 
+    private static boolean constantTimeEquals(String expected, String supplied) {
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                supplied.getBytes(StandardCharsets.UTF_8));
+    }
+
     private static OkHttpClient createHttpClient() {
         ConnectionSpec tlsSpec = new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
                 .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
@@ -381,5 +372,10 @@ public class TokenController {
 
     private static final class InvalidTokenException extends RuntimeException {
         private static final long serialVersionUID = 1L;
+    }
+
+    public record TokenRequest(
+            @com.fasterxml.jackson.annotation.JsonProperty("client_id") String clientId,
+            @com.fasterxml.jackson.annotation.JsonProperty("client_secret") String clientSecret) {
     }
 }
