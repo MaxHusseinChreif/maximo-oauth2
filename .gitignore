@@ -1,6 +1,7 @@
 # Maven build artifacts
 target/
 *.class
+!.dockerignore
 
 # IDE and Project configuration files
 .idea/

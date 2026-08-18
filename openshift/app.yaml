@@ -1,0 +1,229 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: maximo-oauth-2
+  labels:
+    app: maximo-oauth-2
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: maximo-oauth-2
+  labels:
+    app: maximo-oauth-2
+spec:
+  runPolicy: SerialLatestOnly
+  source:
+    type: Git
+    git:
+      uri: https://github.com/MaxHusseinChreif/maximo-oauth2.git
+      ref: main
+    contextDir: ""
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: maximo-oauth-2:latest
+  triggers:
+    - type: ConfigChange
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maximo-oauth2-config
+  labels:
+    app: maximo-oauth-2
+data:
+  MAXIMO_SCRIPT_BASE_URL: https://replace-with-maximo-host.example/maximo/api/script
+  JWT_ISSUER: maximo-oauth2
+  JWT_AUDIENCE: maximo-api
+  JWT_KEY_ID: maximo-oauth2-primary
+  JWT_EXPIRATION_SECONDS: "1800"
+  REQUIRE_HTTPS: "true"
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: maximo-oauth-2
+  labels:
+    app: maximo-oauth-2
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    app: maximo-oauth-2
+    deploymentconfig: maximo-oauth-2
+  strategy:
+    type: Rolling
+    rollingParams:
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+  triggers:
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - maximo-oauth-2
+        from:
+          kind: ImageStreamTag
+          name: maximo-oauth-2:latest
+    - type: ConfigChange
+  template:
+    metadata:
+      labels:
+        app: maximo-oauth-2
+        deploymentconfig: maximo-oauth-2
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: build-java-truststore
+          image: image-registry.openshift-image-registry.svc:5000/maximo-oauth2/maximo-oauth-2:latest
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp "$JAVA_HOME/lib/security/cacerts" /work/cacerts
+              keytool -importcert -trustcacerts -noprompt \
+                -alias maximo-public-ca \
+                -file /ca/ca.crt \
+                -keystore /work/cacerts \
+                -storepass changeit
+              keytool -list \
+                -alias maximo-public-ca \
+                -keystore /work/cacerts \
+                -storepass changeit
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          volumeMounts:
+            - name: maximo-ca
+              mountPath: /ca
+              readOnly: true
+            - name: java-truststore
+              mountPath: /work
+      containers:
+        - name: maximo-oauth-2
+          image: maximo-oauth-2:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: maximo-oauth2-runtime
+            - configMapRef:
+                name: maximo-oauth2-config
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Djavax.net.ssl.trustStore=/etc/maximo-oauth2/truststore/cacerts
+                -Djavax.net.ssl.trustStorePassword=changeit
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          volumeMounts:
+            - name: jwt-keys
+              mountPath: /etc/maximo-oauth2/jwt
+              readOnly: true
+            - name: java-truststore
+              mountPath: /etc/maximo-oauth2/truststore
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: jwt-keys
+          secret:
+            secretName: maximo-oauth2-jwt
+            defaultMode: 0440
+        - name: maximo-ca
+          configMap:
+            name: maximo-ca-cert
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: java-truststore
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maximo-oauth-2
+  labels:
+    app: maximo-oauth-2
+spec:
+  selector:
+    app: maximo-oauth-2
+    deploymentconfig: maximo-oauth-2
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: maximo-oauth-2
+  labels:
+    app: maximo-oauth-2
+  annotations:
+    haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains
+spec:
+  to:
+    kind: Service
+    name: maximo-oauth-2
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
